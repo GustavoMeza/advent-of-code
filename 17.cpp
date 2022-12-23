@@ -45,7 +45,7 @@ struct World {
 				return true;
 		return false;
 	}
-	void make_fall(const Shape &s) {
+	tuple<ll,ll> make_fall(const Shape &s) {
 		ll x = A.size() + 3, y = 2;
 		while(1) {
 			ll delta_y = commands.next();
@@ -59,8 +59,19 @@ struct World {
 			}
 		}
 		put(s,x,y);
+		return {x,y};
 	}
 };
+ll calc_sum(const vector<ll> &A, ll begin_cycle, ll niter) {
+	if(niter < A.size()) return accumulate(begin(A), begin(A) + niter,0);
+	ll len_tail = begin_cycle;
+	ll sum_tail = accumulate(begin(A), begin(A) + len_tail,0);
+	ll len_cycle = A.size() - begin_cycle;
+	ll sum_cycle = accumulate(begin(A) + len_tail, end(A),0);
+	ll rem = (niter - len_tail) % len_cycle;
+	ll sum_rem = accumulate(begin(A) + begin_cycle, begin(A) + begin_cycle + rem,0);
+	return sum_tail + (niter - len_tail) / len_cycle * sum_cycle + sum_rem;
+}
 int main() {
 	ios_base::sync_with_stdio(0);
 
@@ -103,10 +114,43 @@ int main() {
 	InfiniteSequence<ll> commands(command_pattern);
 
 	World world(commands);
-	const ll niter = 2022;
+	const ll niter = 1e12;
+	ll xprev = 0, yprev = 0, hprev = 0;
+	// key = shape turn, command turn, dx, dy
+	// heuristic: cycle of keys = true cyclye
+	map<tuple<ll,ll,ll,ll>,ll> memo;
+	vector<ll> dhs;
+	ll begin_cycle = -1, len = 0;
 	rep(i,0,niter) {
+		ll shape_turn = shapes.turn;
+		ll command_turn = world.commands.turn;
 		const Shape &shape = shapes.next();
-		world.make_fall(shape);
+		auto [x,y] = world.make_fall(shape);
+		ll h = world.A.size();
+		ll dh = h - hprev;
+		dhs.push_back(dh);
+		ll dx = x-xprev, dy = y-yprev;
+		auto key = make_tuple(shape_turn, command_turn, dx, dy);
+		if(len == 0) {
+			if(memo.count(key)) {
+				len = i - memo[key];
+				begin_cycle = memo[key];
+			}
+		} else {
+			if(!memo.count(key)) {
+				len = 0;
+			} else if(memo[key] != i-len) {
+				len = i - memo[key];
+				begin_cycle = memo[key];
+			} else if(i+1 == begin_cycle + 2*len) {
+				break;
+			}	
+		}
+		memo[key] = i;
+		xprev = x, yprev = y;
+		hprev = h;
 	}
-	cout<<world.A.size()<<"\n";
+	dhs.erase(end(dhs) - len, end(dhs));
+	ll ans = calc_sum(dhs, begin_cycle,niter);
+	cout<<ans<<"\n";
 }
